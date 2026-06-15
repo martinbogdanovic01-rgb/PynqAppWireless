@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, SafeAreaView, Dimensions,
+  ActivityIndicator, SafeAreaView, Dimensions, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -39,10 +39,11 @@ export default function App() {
   // ── BLE ──────────────────────────────────────────────────────────────────
   const startScan = useCallback(() => {
     setConn('scanning');
-    // Scan all devices — ESP32 doesn't advertise service UUID in packet
-    manager.startDeviceScan(null, { allowDuplicates: false }, (err, device) => {
+    // Scan by service UUID (in main ad packet) and match name OR localName
+    manager.startDeviceScan([SERVICE_UUID], { allowDuplicates: false }, (err, device) => {
       if (err) { setConn('error'); return; }
-      if (!device || device.name !== DEVICE_NAME) return;
+      const name = device?.name ?? device?.localName;
+      if (!device || name !== DEVICE_NAME) return;
       manager.stopDeviceScan();
       setConn('connecting');
       device.connect()
@@ -64,8 +65,14 @@ export default function App() {
     });
     setTimeout(() => {
       manager.stopDeviceScan();
-      setConn(s => s === 'scanning' ? 'idle' : s);
-    }, 10000);
+      setConn(s => {
+        if (s === 'scanning') {
+          Alert.alert('Not found', 'Could not find PYNQ-Audio-Controller.\n\nMake sure:\n• ESP32 is powered on\n• No other device is connected to it');
+          return 'idle';
+        }
+        return s;
+      });
+    }, 15000);
   }, [manager]);
 
   const disconnect = useCallback(() => {
