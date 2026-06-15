@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "PYNQControl",
+    "slug": "pynq-control",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.student.pynqcontrol",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Used to control the PYNQ-Z2 board via Bluetooth"
+      }
+    },
+    "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [],
+          "bluetoothAlwaysPermission": "Allow PYNQControl to connect to your PYNQ board"
+        }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install JS dependencies
+        run: npm install
+
+      - name: Expo prebuild (generates Xcode project)
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Build archive (no code signing)
+        run: |
+          cd ios
+          xcodebuild \
+            -workspace PYNQControl.xcworkspace \
+            -scheme PYNQControl \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath $RUNNER_TEMP/PYNQControl.xcarchive \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | xcpretty --color || true
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p $RUNNER_TEMP/Payload
+          cp -r "$RUNNER_TEMP/PYNQControl.xcarchive/Products/Applications/PYNQControl.app" \
+                "$RUNNER_TEMP/Payload/"
+          cd $RUNNER_TEMP
+          zip -qr PYNQControl.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PYNQControl-IPA
+          path: ${{ runner.temp }}/PYNQControl.ipa
+          retention-days: 30
