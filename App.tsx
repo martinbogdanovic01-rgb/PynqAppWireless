@@ -76,13 +76,17 @@ export default function App() {
     const dev = deviceRef.current;
     if (!dev) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    dev.writeCharacteristicWithoutResponseForService(
+    // ESP32 uses PROPERTY_WRITE (with response) — must use writeCharacteristicWithResponseForService
+    dev.writeCharacteristicWithResponseForService(
       SERVICE_UUID, CHAR_UUID, btoa(`L${i + 1}$`)
     ).then(() => setLeds(prev => {
       const next = [...prev];
       next[i] = !next[i];
       return next;
-    })).catch(e => console.warn('BLE write:', e));
+    })).catch(e => {
+      console.warn('BLE write error:', e);
+      setConn('error');
+    });
   }, []);
 
   // ── Render ────────────────────────────────────────────────────────────────
