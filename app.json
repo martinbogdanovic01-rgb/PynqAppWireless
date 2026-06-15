@@ -9,8 +9,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.student.pynqcontrol",
       "infoPlist": {
-        "NSBluetoothAlwaysUsageDescription": "Used to control the PYNQ-Z2 board via Bluetooth",
-        "NSMicrophoneUsageDescription": "Not used — required by audio framework"
+        "NSBluetoothAlwaysUsageDescription": "Used to control the PYNQ-Z2 board via Bluetooth"
       }
     },
     "plugins": [
@@ -21,9 +20,7 @@
           "modes": [],
           "bluetoothAlwaysPermission": "Allow PYNQControl to connect to your PYNQ board"
         }
-      ],
-      "expo-av",
-      "expo-document-picker"
+      ]
     ]
   }
 }
