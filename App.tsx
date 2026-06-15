@@ -39,7 +39,8 @@ export default function App() {
   // ── BLE ──────────────────────────────────────────────────────────────────
   const startScan = useCallback(() => {
     setConn('scanning');
-    manager.startDeviceScan([SERVICE_UUID], null, (err, device) => {
+    // Scan all devices — ESP32 doesn't advertise service UUID in packet
+    manager.startDeviceScan(null, { allowDuplicates: false }, (err, device) => {
       if (err) { setConn('error'); return; }
       if (!device || device.name !== DEVICE_NAME) return;
       manager.stopDeviceScan();
