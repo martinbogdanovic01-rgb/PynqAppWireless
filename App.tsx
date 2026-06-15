@@ -37,16 +37,31 @@ export default function App() {
   const isBusy      = conn === 'scanning' || conn === 'connecting';
 
   // ── BLE ──────────────────────────────────────────────────────────────────
-  const startScan = useCallback(() => {
+  const startScan = useCallback(async () => {
     setConn('scanning');
-    // Scan by service UUID (in main ad packet) and match name OR localName
-    manager.startDeviceScan([SERVICE_UUID], { allowDuplicates: false }, (err, device) => {
+
+    // Wait for BLE to be ready before scanning
+    const state = await manager.state();
+    if (state !== 'PoweredOn') {
+      Alert.alert('Bluetooth unavailable', 'Make sure Bluetooth is on and try again.');
+      setConn('idle');
+      return;
+    }
+
+    // Scan ALL devices — no service UUID filter, no options filter
+    // iOS may omit device name until scan response arrives, so we check both fields
+    manager.startDeviceScan(null, null, (err, device) => {
       if (err) { setConn('error'); return; }
-      const name = device?.name ?? device?.localName;
-      if (!device || name !== DEVICE_NAME) return;
+      if (!device) return;
+
+      const name = (device.name ?? device.localName ?? '').trim();
+      if (name.toLowerCase() !== DEVICE_NAME.toLowerCase()) return;
+
+      // Found it
       manager.stopDeviceScan();
       setConn('connecting');
-      device.connect()
+
+      device.connect({ timeout: 10000 })
         .then(d => d.discoverAllServicesAndCharacteristics())
         .then(d => {
           deviceRef.current = d;
@@ -63,16 +78,20 @@ export default function App() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         });
     });
+
     setTimeout(() => {
       manager.stopDeviceScan();
       setConn(s => {
         if (s === 'scanning') {
-          Alert.alert('Not found', 'Could not find PYNQ-Audio-Controller.\n\nMake sure:\n• ESP32 is powered on\n• No other device is connected to it');
+          Alert.alert(
+            'Device not found',
+            'Could not find PYNQ-Audio-Controller.\n\n• Is the ESP32 powered on?\n• Is another device connected to it?'
+          );
           return 'idle';
         }
         return s;
       });
-    }, 15000);
+    }, 20000);
   }, [manager]);
 
   const disconnect = useCallback(() => {
