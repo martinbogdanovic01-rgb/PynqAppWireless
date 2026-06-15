@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: macos-14
@@ -13,11 +16,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '24'
 
       - name: Install JS dependencies
         run: npm install
@@ -30,26 +32,29 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: Build archive (no code signing)
+      - name: Detect scheme and build archive (no code signing)
         run: |
           cd ios
+          SCHEME=$(ls *.xcworkspace | sed 's/.xcworkspace//')
+          echo "Building scheme: $SCHEME"
           xcodebuild \
-            -workspace PYNQControl.xcworkspace \
-            -scheme PYNQControl \
+            -workspace ${SCHEME}.xcworkspace \
+            -scheme ${SCHEME} \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath $RUNNER_TEMP/PYNQControl.xcarchive \
+            -archivePath $RUNNER_TEMP/${SCHEME}.xcarchive \
             archive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            | xcpretty --color || true
+            2>&1 | tail -50
+          echo "SCHEME=$SCHEME" >> $GITHUB_ENV
 
       - name: Package unsigned IPA
         run: |
           mkdir -p $RUNNER_TEMP/Payload
-          cp -r "$RUNNER_TEMP/PYNQControl.xcarchive/Products/Applications/PYNQControl.app" \
+          cp -r "$RUNNER_TEMP/${SCHEME}.xcarchive/Products/Applications/${SCHEME}.app" \
                 "$RUNNER_TEMP/Payload/"
           cd $RUNNER_TEMP
           zip -qr PYNQControl.ipa Payload
