@@ -7,6 +7,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SCHEME: PYNQControl
 
 jobs:
   build:
@@ -24,7 +25,7 @@ jobs:
       - name: Install JS dependencies
         run: npm install
 
-      - name: Expo prebuild (generates Xcode project)
+      - name: Expo prebuild
         run: npx expo prebuild --platform ios --clean --no-install
 
       - name: Install CocoaPods
@@ -32,32 +33,37 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: Detect scheme and build archive (no code signing)
+      - name: List available schemes (debug)
         run: |
           cd ios
-          SCHEME=$(ls *.xcworkspace | sed 's/.xcworkspace//')
-          echo "Building scheme: $SCHEME"
+          xcodebuild -list 2>&1 || true
+
+      - name: Build archive (no code signing)
+        run: |
+          set -euo pipefail
           xcodebuild \
-            -workspace ${SCHEME}.xcworkspace \
-            -scheme ${SCHEME} \
+            -workspace ios/${{ env.SCHEME }}.xcworkspace \
+            -scheme ${{ env.SCHEME }} \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath $RUNNER_TEMP/${SCHEME}.xcarchive \
+            -archivePath $RUNNER_TEMP/${{ env.SCHEME }}.xcarchive \
             archive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            2>&1 | tail -50
-          echo "SCHEME=$SCHEME" >> $GITHUB_ENV
+            COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Package unsigned IPA
         run: |
-          mkdir -p $RUNNER_TEMP/Payload
-          cp -r "$RUNNER_TEMP/${SCHEME}.xcarchive/Products/Applications/${SCHEME}.app" \
-                "$RUNNER_TEMP/Payload/"
-          cd $RUNNER_TEMP
+          set -euo pipefail
+          APP=$(find "$RUNNER_TEMP/${{ env.SCHEME }}.xcarchive/Products/Applications" \
+                     -maxdepth 1 -name "*.app" | head -1)
+          echo "Found app: $APP"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -r "$APP" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
           zip -qr PYNQControl.ipa Payload
+          echo "IPA size: $(du -sh PYNQControl.ipa | cut -f1)"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
