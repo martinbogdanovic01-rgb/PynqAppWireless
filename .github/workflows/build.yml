@@ -22,21 +22,33 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Setup Expo
-        uses: expo/expo-github-action@v8
-        with:
-          expo-version: latest
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Generate Xcode project
+        run: npx expo prebuild --platform ios --no-install
 
-      - name: Build IPA with EAS
-        run: eas build --platform ios --profile production --non-interactive --output ./PYNQControllerApp.ipa
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Build (unsigned)
+        run: |
+          xcodebuild archive \
+            -workspace ios/PYNQControl.xcworkspace \
+            -scheme PYNQControl \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            -archivePath $RUNNER_TEMP/PYNQControl.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || true
+
+      - name: Export IPA
+        run: |
+          mkdir -p $RUNNER_TEMP/ipa
+          cp -r "$RUNNER_TEMP/PYNQControl.xcarchive/Products/Applications/PYNQControl.app" \
+                $RUNNER_TEMP/ipa/
+          cd $RUNNER_TEMP/ipa
+          zip -r $GITHUB_WORKSPACE/PYNQControl.ipa .
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: PYNQ-Audio-Controller-IPA
-          path: "*.ipa"
+          name: PYNQ-Audio-Controller
+          path: PYNQControl.ipa
           retention-days: 30
