@@ -277,7 +277,7 @@ export default function App() {
   const send = useCallback((cmd: string) => {
     devRef.current
       ?.writeCharacteristicWithoutResponseForService(BLE_SERVICE, BLE_CHAR, btoa(cmd + '\n'))
-      .catch(() => devRef.current?.cancelConnection());
+      .catch(() => {}); /* fire-and-forget: transient BLE write errors are normal */
   }, []);
 
   // ── Scan ─────────────────────────────────────────────────────────────────────
