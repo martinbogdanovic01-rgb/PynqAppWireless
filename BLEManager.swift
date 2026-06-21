@@ -7,26 +7,32 @@ private let kDeviceName         = "PYNQ-Audio-Controller"
 
 class BLEManager: NSObject, ObservableObject {
 
-    @Published var isScanning   = false
-    @Published var isConnected  = false
+    @Published var isScanning    = false
+    @Published var isConnected   = false
     @Published var statusMessage = "Disconnected"
-    @Published var ledStates: [Bool] = [false, false, false, false]
 
-    private var central: CBCentralManager!
+    // DSP state (mirrored locally for UI)
+    @Published var filterActive  = false   // false=bypass, true=Chebyshev II
+    @Published var isMuted       = false
+    @Published var volume: Double = 80     // 0–100
+
+    private var central:   CBCentralManager!
     private var peripheral: CBPeripheral?
-    private var writeChar: CBCharacteristic?
+    private var writeChar:  CBCharacteristic?
 
     override init() {
         super.init()
         central = CBCentralManager(delegate: self, queue: .main)
     }
 
+    // MARK: - Connection
+
     func startScan() {
         guard central.state == .poweredOn else {
             statusMessage = "Bluetooth not available"
             return
         }
-        isScanning   = true
+        isScanning    = true
         statusMessage = "Scanning…"
         central.scanForPeripherals(withServices: [kServiceUUID], options: nil)
     }
@@ -36,16 +42,44 @@ class BLEManager: NSObject, ObservableObject {
         central.cancelPeripheralConnection(p)
     }
 
-    func toggleLED(_ index: Int) {
+    // MARK: - Commands
+
+    func setFilter(_ active: Bool) {
+        send(active ? "F1" : "F0")
+        filterActive = active
+    }
+
+    func setVolume(_ value: Int) {
+        let clamped = max(0, min(100, value))
+        send("V\(clamped)")
+        volume = Double(clamped)
+    }
+
+    func toggleMute() {
+        if isMuted {
+            send("U")
+        } else {
+            send("M")
+        }
+        isMuted.toggle()
+    }
+
+    func filterGainUp()    { send("G1") }
+    func filterGainDown()  { send("G2") }
+    func masterGainUp()    { send("G3") }
+    func masterGainDown()  { send("G4") }
+
+    // MARK: - Private
+
+    private func send(_ cmd: String) {
         guard let char = writeChar, let p = peripheral else { return }
-        let cmd  = "L\(index + 1)$"
-        guard let data = cmd.data(using: .utf8) else { return }
+        guard let data = (cmd + "\n").data(using: .utf8) else { return }
         p.writeValue(data, for: char, type: .withoutResponse)
-        ledStates[index].toggle()
     }
 }
 
 // MARK: - CBCentralManagerDelegate
+
 extension BLEManager: CBCentralManagerDelegate {
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
@@ -65,13 +99,13 @@ extension BLEManager: CBCentralManagerDelegate {
         self.peripheral = peripheral
         central.stopScan()
         isScanning    = false
-        statusMessage  = "Connecting…"
+        statusMessage = "Connecting…"
         central.connect(peripheral, options: nil)
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         isConnected   = true
-        statusMessage  = "Connected"
+        statusMessage = "Connected"
         peripheral.delegate = self
         peripheral.discoverServices([kServiceUUID])
     }
@@ -79,11 +113,13 @@ extension BLEManager: CBCentralManagerDelegate {
     func centralManager(_ central: CBCentralManager,
                         didDisconnectPeripheral peripheral: CBPeripheral,
                         error: Error?) {
-        isConnected   = false
-        self.peripheral = nil
-        writeChar      = nil
-        ledStates      = [false, false, false, false]
-        statusMessage  = "Disconnected"
+        isConnected      = false
+        self.peripheral  = nil
+        writeChar        = nil
+        filterActive     = false
+        isMuted          = false
+        volume           = 80
+        statusMessage    = "Disconnected"
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -95,6 +131,7 @@ extension BLEManager: CBCentralManagerDelegate {
 }
 
 // MARK: - CBPeripheralDelegate
+
 extension BLEManager: CBPeripheralDelegate {
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
@@ -108,7 +145,7 @@ extension BLEManager: CBPeripheralDelegate {
                     error: Error?) {
         if let char = service.characteristics?.first(where: { $0.uuid == kCharacteristicUUID }) {
             writeChar     = char
-            statusMessage  = "Ready"
+            statusMessage = "Ready"
         }
     }
 }
