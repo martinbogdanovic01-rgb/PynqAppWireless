@@ -256,7 +256,11 @@ function SLabel({ title, detail }: { title: string; detail?: string }) {
 type Screen = 'connect' | 'control';
 
 export default function App() {
-  const manager   = useRef(new BleManager()).current;
+  // Lazy-init so the BleManager is constructed exactly once (a bare
+  // useRef(new BleManager()) re-constructs — and leaks — one per render).
+  const managerRef = useRef<BleManager | null>(null);
+  if (!managerRef.current) managerRef.current = new BleManager();
+  const manager   = managerRef.current;
   const devRef    = useRef<Device | null>(null);
 
   const [screen,     setScreen]     = useState<Screen>('connect');
